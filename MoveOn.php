@@ -174,16 +174,17 @@ class MoveOn
             if (false === $this->validateField($field,$entity))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
-            $dataString .='"'.$field.'":"'.$value.'"';
+            $dataString .='"'.$this->prefix($field,$entity).'":"'.$value.'"';
 
             if (count($data) > $i)
                 $dataString .= ',';
 
             $i++;
         }
+        $dataString .= "}";
 
         try {
-            return $this->sendQuery($entity,'save','{"entity":"'.$entity.'",'.$dataString.'}',$method,$timeout);
+            return $this->sendQuery($entity,'save',$dataString,$method,$timeout);
 
         }
         catch (\Exception $exception)
