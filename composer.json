@@ -1,0 +1,27 @@
+{
+  "name": "prayno/moveon",
+  "type": "symfony-bundle",
+  "description": "MoveON API wrapper",
+  "keywords": ["PRayno", "MoveON", "International Mobility", "Erasmus", "QS Unisolution", "QSU"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Pierre Raynaud",
+      "email": "pierre.raynaud@uca.fr"
+    }
+  ],
+  "require": {
+    "php": ">=7.1",
+    "ext-simplexml": "*",
+    "ext-json": "*",
+    "symfony/dom-crawler": "4.2.*",
+    "symfony/yaml": "4.2.*",
+    "guzzlehttp/guzzle": "^6.3"
+  },
+  "autoload": {
+    "psr-0": { "PRayno\\MoveOnApi": "" }
+  },
+  "target-dir": "PRayno/MoveOnApi",
+  "extra": {
+  }
+}
