@@ -1,9 +1,9 @@
-#MoveOn Api wrapper
+# MoveOn Api wrapper
 
 MoveOn (https://www.qs-unisolution.com/moveon/) is an application used to manage International Mobility between universities and schools (Erasmus program). 
 This package is a php wrapper for the MoveOn API.
 
-##Installation
+## Installation
 Install the library via Composer by running the following command:
 
 `composer require prayno/moveon`
