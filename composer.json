@@ -1,6 +1,5 @@
 {
   "name": "prayno/moveon",
-  "type": "symfony-bundle",
   "description": "MoveON API wrapper",
   "keywords": ["PRayno", "MoveON", "International Mobility", "Erasmus", "QS Unisolution", "QSU"],
   "license": "MIT",
