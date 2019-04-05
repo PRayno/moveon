@@ -1,11 +1,9 @@
 <?php
 namespace PRayno\MoveOnApi;
 
-
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Yaml\Yaml;
-
 
 class MoveOn
 {
@@ -91,7 +89,6 @@ class MoveOn
                 return simplexml_load_string($responseContent);
             }
         }
-	throw new \Exception("The request took too long to process ($timeout s)");
     }
 
     /**
@@ -187,6 +184,54 @@ class MoveOn
         try {
             return $this->sendQuery($entity,'save',$dataString,$method,$timeout);
 
+        }
+        catch (\Exception $exception)
+        {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Find courses list for a student
+     * @param string $studentnumber
+     * @param string $courseCodeField
+     * @return array
+     * @throws \Exception
+     */
+    public function getUserCourses(string $studentnumber,string $courseCodeField="courseunit.code")
+    {
+        try {
+            $data = $this->findBy("person",["matriculation_id"=>$studentnumber]);
+            if ($data->records == 0)
+                throw new \Exception("Could not find student in MoveON database");
+
+            if ($data->records > 1)
+                throw new \Exception("Several students were found in MoveON db with the number $studentnumber.");
+
+            $field = "person.id";
+            $studentId = $data->rows[0]->$field->__toString();
+
+            // Find stay
+            $data = $this->findBy("stay",["person_id"=>$studentId]);
+            if ($data->records == 0)
+                throw new \Exception("Could not find stay in MoveON database");
+
+            if ($data->records > 1)
+                throw new \Exception("Several stays were found in MoveON db for the student $studentnumber.");
+
+            // Find courses
+            $stayIdField = "stay.id";
+            $courses = $this->findBy("course-unit",["stay.id"=>$data->rows[0]->$stayIdField->__toString()]);
+            if ($courses->records == 0)
+                throw new \Exception("No course were linked to the student $studentnumber in MoveON database");
+
+            $coursesList=[];
+            foreach ($courses->rows as $course)
+            {
+                $coursesList[] = trim($course->$courseCodeField->__toString());
+            }
+            
+            return $coursesList;
         }
         catch (\Exception $exception)
         {
