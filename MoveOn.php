@@ -91,6 +91,7 @@ class MoveOn
                 return simplexml_load_string($responseContent);
             }
         }
+	throw new \Exception("The request took too long to process ($timeout s)");
     }
 
     /**
