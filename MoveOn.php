@@ -86,6 +86,7 @@ class MoveOn
             {
                 $responseContent = substr(urldecode($crawler->filterXPath("//response")->text()),1,-1);
                 $responseContent = str_replace("\/","/",$responseContent);
+                $responseContent = json_decode(sprintf('"%s"', $responseContent));
                 return simplexml_load_string($responseContent);
             }
         }
