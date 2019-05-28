@@ -241,6 +241,15 @@ class MoveOn
     }
 
     /**
+     * @param string $entity
+     * @return array
+     */
+    public function getEntity(string $entity)
+    {
+        return $this->entities[$entity];
+    }
+
+    /**
      * @param $field
      * @param $object
      * @return string
