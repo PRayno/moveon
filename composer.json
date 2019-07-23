@@ -13,8 +13,8 @@
     "php": ">=7.1",
     "ext-simplexml": "*",
     "ext-json": "*",
-    "symfony/dom-crawler": "^4.2.*",
-    "symfony/yaml": "^4.2.*",
+    "symfony/dom-crawler": "^4.2",
+    "symfony/yaml": "^4.2",
     "guzzlehttp/guzzle": "^6.3"
   },
   "autoload": {
