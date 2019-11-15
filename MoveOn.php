@@ -11,7 +11,8 @@ class MoveOn
     protected $certificatePath;
     protected $keyFilePath;
     protected $certificatePassword;
-    protected $entities;
+    protected $entities_read;
+    protected $entities_write;
 
     /**
      * Request constructor.
@@ -26,7 +27,8 @@ class MoveOn
         $this->certificatePath = $certificatePath;
         $this->keyFilePath = $keyFilePath;
         $this->certificatePassword = $certificatePassword;
-        $this->entities = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities.yml"));
+        $this->entities_read = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_read.yml"));
+        $this->entities_write = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_write.yml"));
     }
 
     /**
@@ -39,9 +41,11 @@ class MoveOn
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function sendQuery($entity,$action,$data,$method="queue",$timeout=10)
+    public function sendQuery(string $entity,$action,$data,$method="queue",$timeout=10)
     {
-        if (!isset($this->entities[$entity]))
+        $entities = ($action=="save" ? $this->entities_write:$this->entities_read);
+
+        if (!isset($entities[$entity]))
             throw new \Exception("Entity $entity does not exist");
 
         $curl_post_data = [
@@ -109,7 +113,7 @@ class MoveOn
      */
     public function findBy(string $entity,array $criteria, array $sort=["id"=>"asc"], int $rows=100, int $page=1,array $columns=[],string $locale="eng",string $search="true",$method="queue",$timeout=10)
     {
-        if (!isset($this->entities[$entity]))
+        if (!isset($this->entities_read[$entity]))
             throw new \Exception("Entity $entity does not exist");
 
         $rules='';
@@ -117,7 +121,7 @@ class MoveOn
 
         foreach ($criteria as $field=>$value)
         {
-            if (false === $this->validateField($field,$entity))
+            if (false === $this->validateField($field,$entity,"read"))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
             $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"eq\",\"data\":\"'.$value.'\"}';
@@ -130,7 +134,7 @@ class MoveOn
         }
 
         if (empty($columns))
-            $columns = $this->entities[$entity];
+            $columns = $this->entities_read[$entity];
 
         $visibleColumns=[];
         foreach ($columns as $column)
@@ -163,14 +167,14 @@ class MoveOn
      */
     public function save(string $entity,array $data,$method="queue",$timeout=10)
     {
-        if (!isset($this->entities[$entity]))
+        if (!isset($this->entities_write[$entity]))
             throw new \Exception("Entity $entity does not exist");
 
         $i=1;
         $dataString = '{"entity":"'.$entity.'",';
         foreach ($data as $field=>$value)
         {
-            if (false === $this->validateField($field,$entity))
+            if (false === $this->validateField($field,$entity,"write"))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
             $dataString .='"'.$this->prefix($field,$entity).'":"'.$value.'"';
@@ -204,7 +208,7 @@ class MoveOn
         try {
             $data = $this->findBy("person",["matriculation_id"=>$studentnumber]);
             if ($data->records == 0)
-                throw new \Exception("Could not find student in MoveON database");
+                throw new \Exception("Could not find student $studentnumber in MoveON database");
 
             if ($data->records > 1)
                 throw new \Exception("Several students were found in MoveON db with the number $studentnumber.");
@@ -231,7 +235,7 @@ class MoveOn
             {
                 $coursesList[] = trim($course->$courseCodeField->__toString());
             }
-            
+
             return $coursesList;
         }
         catch (\Exception $exception)
@@ -242,11 +246,18 @@ class MoveOn
 
     /**
      * @param string $entity
-     * @return array
+     * @param string $readWrite
+     * @return mixed
+     * @throws \Exception
      */
-    public function getEntity(string $entity)
+    public function getEntity(string $entity,$readWrite="read")
     {
-        return $this->entities[$entity];
+        $entities = ($readWrite=="read" ? $this->entities_read : $this->entities_write);
+
+        if (!isset($entities[$entity]))
+            throw new \Exception("Entity $entity does not exist in $readWrite mode");
+
+        return $entities[$entity];
     }
 
     /**
@@ -270,13 +281,15 @@ class MoveOn
     /**
      * @param $field
      * @param $entity
+     * @param $readWrite
      * @return bool
+     * @throws \Exception
      */
-    private function validateField($field,$entity)
+    private function validateField($field,$entity,$readWrite)
     {
         if (substr($field,0,6) == 'custom')
             return true;
 
-        return in_array($field,$this->entities[$entity]);
+        return in_array($field,$this->getEntity($entity,$readWrite));
     }
 }
