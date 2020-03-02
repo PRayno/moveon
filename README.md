@@ -21,6 +21,11 @@ To gather information, you need the entity to look for and the criteria you want
 $moveon = new MoveOn($service_url,$certificatePath,$keyFilePath,$certificatePassword);
 $data = $moveon->findBy("person",["surname"=>"Foo","first_name"=>"Bar"]);
 ```
+You can use arrays as criteria to search for multiple values. Eg :
+```php
+$data = $moveon->findBy("person",["surname"=>"Doe","first_name"=>["John","Jane"]]);
+```
+
 This will return a SimpleXMLElement object (page,records,total and rows).
 
 You can also add more options to this method :

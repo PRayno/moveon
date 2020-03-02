@@ -124,7 +124,10 @@ class MoveOn
             if (false === $this->validateField($field,$entity,"read"))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
-            $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"eq\",\"data\":\"'.$value.'\"}';
+            if (is_array($value))
+                $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"in\",\"data\":\"'.implode(",",$value).'\"}';
+            else
+                $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"eq\",\"data\":\"'.$value.'\"}';
 
 
             if (count($criteria) > $i)
