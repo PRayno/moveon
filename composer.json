@@ -12,6 +12,7 @@
   "require": {
     "php": ">=7.1",
     "ext-simplexml": "*",
+    "ext-dom": "*",
     "ext-json": "*",
     "symfony/dom-crawler": "^4.2",
     "symfony/yaml": "^4.2",

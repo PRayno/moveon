@@ -13,6 +13,7 @@ class MoveOn
     protected $certificatePassword;
     protected $entities_read;
     protected $entities_write;
+    protected $maxRowsPerQuery;
 
     /**
      * Request constructor.
@@ -21,7 +22,7 @@ class MoveOn
      * @param string $keyFilePath
      * @param string $certificatePassword
      */
-    public function __construct(string $service_url, string $certificatePath, string $keyFilePath, string $certificatePassword)
+    public function __construct(string $service_url, string $certificatePath, string $keyFilePath, string $certificatePassword, int $maxRowsPerQuery=250)
     {
         $this->service_url = $service_url;
         $this->certificatePath = $certificatePath;
@@ -29,6 +30,7 @@ class MoveOn
         $this->certificatePassword = $certificatePassword;
         $this->entities_read = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_read.yml"));
         $this->entities_write = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_write.yml"));
+        $this->maxRowsPerQuery = $maxRowsPerQuery;
     }
 
     /**
@@ -147,16 +149,31 @@ class MoveOn
 
         $visibleColumns = implode(";",$visibleColumns);
 
-
-        $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$rows.'"}';
-
-        try {
-            return $this->sendQuery($entity,"list",$filter,$method,$timeout);
-        }
-        catch (\Exception $exception)
+        // Recreate xml response after pagination
+        for ($page=1;$page<=ceil($rows/$this->maxRowsPerQuery);$page++)
         {
-            throw $exception;
+            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$this->maxRowsPerQuery.'"}';
+            try {
+                $response = $this->sendQuery($entity,"list",$filter,$method,$timeout);
+            }
+            catch (\Exception $exception)
+            {
+                throw $exception;
+            }
+
+            if ($page==1)
+            {
+                $finalResponse = clone $response;
+                unset($finalResponse->rows);
+            }
+
+            foreach ($response->rows as $row)
+            {
+                $this->simplexml_import_simplexml($finalResponse,$row);
+            }
         }
+
+        return $finalResponse;
     }
 
     /**
@@ -294,5 +311,65 @@ class MoveOn
             return true;
 
         return in_array($field,$this->getEntity($entity,$readWrite));
+    }
+
+    /**
+     * @param \SimpleXMLElement $parent
+     * @param \SimpleXMLElement $child
+     * @param false $before
+     * @return bool
+     */
+    private function simplexml_import_simplexml(\SimpleXMLElement $parent, \SimpleXMLElement $child, $before = false)
+    {
+        // check if there is something to add
+        if ($child[0] == NULL) {
+            return true;
+        }
+
+        // if it is a list of SimpleXMLElements default to the first one
+        $child = $child[0];
+
+        // insert attribute
+        if ($child->xpath('.') != array($child)) {
+            $parent[$child->getName()] = (string)$child;
+            return true;
+        }
+
+        $xml = $child->asXML();
+
+        // remove the XML declaration on document elements
+        if ($child->xpath('/*') == array($child)) {
+            $pos = strpos($xml, "\n");
+            $xml = substr($xml, $pos + 1);
+        }
+
+        return $this->simplexml_import_xml($parent, $xml, $before);
+    }
+
+    /**
+     * @param \SimpleXMLElement $parent
+     * @param $xml
+     * @param false $before
+     * @return bool
+     */
+    private function simplexml_import_xml(\SimpleXMLElement $parent, $xml, $before = false)
+    {
+        $xml = (string)$xml;
+
+        // check if there is something to add
+        if ($nodata = !strlen($xml) or $parent[0] == NULL) {
+            return $nodata;
+        }
+
+        // add the XML
+        $node     = dom_import_simplexml($parent);
+        $fragment = $node->ownerDocument->createDocumentFragment();
+        $fragment->appendXML($xml);
+
+        if ($before) {
+            return (bool)$node->parentNode->insertBefore($fragment, $node);
+        }
+
+        return (bool)$node->appendChild($fragment);
     }
 }
