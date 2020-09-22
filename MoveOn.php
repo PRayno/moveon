@@ -150,9 +150,13 @@ class MoveOn
         $visibleColumns = implode(";",$visibleColumns);
 
         // Recreate xml response after pagination
+        $remainingRows = $rows;
         for ($page=1;$page<=ceil($rows/$this->maxRowsPerQuery);$page++)
         {
-            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$this->maxRowsPerQuery.'"}';
+            $rowsToRetrieve = ($remainingRows < $this->maxRowsPerQuery ? $remainingRows:$this->maxRowsPerQuery);
+            $remainingRows = $remainingRows-$rowsToRetrieve;
+
+            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$rowsToRetrieve.'"}';
             try {
                 $response = $this->sendQuery($entity,"list",$filter,$method,$timeout);
             }
