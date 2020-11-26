@@ -65,10 +65,15 @@ class MoveOn
         ]);
 
         $content = $response->getBody()->getContents();
+
         $crawler = new Crawler($content);
         $moveonResponse = json_decode($crawler->filterXPath("//response")->text());
+
         if (!isset($moveonResponse->queueId))
+        {
+
             throw new \Exception("The MoveON server did not respond properly");
+        }
 
         // Retrieve data
         $start = time();
@@ -90,10 +95,15 @@ class MoveOn
             $crawler = new Crawler($content);
             if ($crawler->filterXPath("//status")->text() != "processing")
             {
+                $responseContent = $crawler->filterXPath("//response")->html();
+                return simplexml_load_string($responseContent);
+
+                /*
                 $responseContent = substr(urldecode($crawler->filterXPath("//response")->text()),1,-1);
                 $responseContent = str_replace("\/","/",$responseContent);
                 $responseContent = json_decode(sprintf('"%s"', $responseContent));
                 return simplexml_load_string($responseContent);
+                */
             }
         }
     }
@@ -113,7 +123,7 @@ class MoveOn
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function findBy(string $entity,array $criteria, array $sort=["id"=>"asc"], int $rows=100, int $page=1,array $columns=[],string $locale="eng",string $search="true",$method="queue",$timeout=10)
+    public function findBy(string $entity,array $criteria, array $sort=["id"=>"asc"], int $rows=250, int $page=1,array $columns=[],string $locale="eng",string $search="true",$method="queue",$timeout=10)
     {
         if (!isset($this->entities_read[$entity]))
             throw new \Exception("Entity $entity does not exist");
@@ -149,6 +159,23 @@ class MoveOn
 
         $visibleColumns = implode(";",$visibleColumns);
 
+        // Simple query if the page number is set directly
+        if ($page>1)
+        {
+            if ($rows > $this->maxRowsPerQuery)
+                throw new \Exception("The number of rows for a given page must not exceed the limit of ".$this->maxRowsPerQuery);
+
+            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$rows.'"}';
+            try {
+                return $this->sendQuery($entity,"list",$filter,$method,$timeout);
+            }
+            catch (\Exception $exception)
+            {
+                throw $exception;
+            }
+        }
+
+
         // Recreate xml response after pagination
         $remainingRows = $rows;
         for ($page=1;$page<=ceil($rows/$this->maxRowsPerQuery);$page++)
@@ -175,6 +202,9 @@ class MoveOn
             {
                 $this->simplexml_import_simplexml($finalResponse,$row);
             }
+
+            if ($finalResponse->records == count($finalResponse->rows))
+                break;
         }
 
         return $finalResponse;
@@ -294,10 +324,7 @@ class MoveOn
         if (substr($field,0,6) == 'custom')
             return $field;
 
-        if ("course-unit" == $object)
-            $prefix = "courseunit.";
-        else
-            $prefix = str_replace("-","_",$object).".";
+        $prefix = str_replace("-","_",$object).".";
 
         return $prefix.$field;
     }
