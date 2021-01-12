@@ -93,17 +93,10 @@ class MoveOn
             $content = $response->getBody()->getContents();
 
             $crawler = new Crawler($content);
-            if ($crawler->filterXPath("//status")->text() != "processing")
+            if ($crawler->filterXPath("//status")->text() == "success")
             {
                 $responseContent = $crawler->filterXPath("//response")->html();
                 return simplexml_load_string($responseContent);
-
-                /*
-                $responseContent = substr(urldecode($crawler->filterXPath("//response")->text()),1,-1);
-                $responseContent = str_replace("\/","/",$responseContent);
-                $responseContent = json_decode(sprintf('"%s"', $responseContent));
-                return simplexml_load_string($responseContent);
-                */
             }
         }
     }
