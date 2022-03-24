@@ -10,13 +10,13 @@
     }
   ],
   "require": {
-    "php": ">=7.1",
+    "php": ">=8.0",
     "ext-simplexml": "*",
     "ext-dom": "*",
     "ext-json": "*",
-    "symfony/dom-crawler": "^4.2",
-    "symfony/yaml": "^4.2",
-    "guzzlehttp/guzzle": "^6.3"
+    "symfony/dom-crawler": "^5.4",
+    "symfony/yaml": "^5.4",
+    "symfony/http-client": "^5.4"
   },
   "autoload": {
     "psr-0": { "PRayno\\MoveOnApi": "" }
