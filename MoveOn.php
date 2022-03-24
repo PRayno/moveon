@@ -1,36 +1,29 @@
 <?php
 namespace PRayno\MoveOnApi;
 
-use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
+
 
 class MoveOn
 {
-    protected $service_url;
-    protected $certificatePath;
-    protected $keyFilePath;
-    protected $certificatePassword;
-    protected $entities_read;
-    protected $entities_write;
-    protected $maxRowsPerQuery;
+    protected array $entities_read;
+    protected array $entities_write;
+    protected int $maxRowsPerQuery;
+    private HttpClientInterface $client;
 
     /**
      * Request constructor.
-     * @param string $service_url
-     * @param string $certificatePath
-     * @param string $keyFilePath
-     * @param string $certificatePassword
+     * @param HttpClientInterface $client
+     * @param int $maxRowsPerQuery
      */
-    public function __construct(string $service_url, string $certificatePath, string $keyFilePath, string $certificatePassword, int $maxRowsPerQuery=250)
+    public function __construct(HttpClientInterface $client, int $maxRowsPerQuery=250)
     {
-        $this->service_url = $service_url;
-        $this->certificatePath = $certificatePath;
-        $this->keyFilePath = $keyFilePath;
-        $this->certificatePassword = $certificatePassword;
+        $this->client = $client;
+        $this->maxRowsPerQuery = $maxRowsPerQuery;
         $this->entities_read = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_read.yml"));
         $this->entities_write = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_write.yml"));
-        $this->maxRowsPerQuery = $maxRowsPerQuery;
     }
 
     /**
@@ -40,10 +33,11 @@ class MoveOn
      * @param $data
      * @param string $method
      * @param int $timeout
+     * @param bool $retrieveData
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function sendQuery(string $entity,$action,$data,$method="queue",$timeout=10)
+    public function sendQuery(string $entity,string $action,string $data,string $method="queue",int $timeout=10,bool $retrieveData=true): \SimpleXMLElement
     {
         $entities = ($action=="save" ? $this->entities_write:$this->entities_read);
 
@@ -57,23 +51,19 @@ class MoveOn
             'data' => $data
         ];
 
-        $client = new Client();
-        $response = $client->post($this->service_url,[
-            'cert' => [$this->certificatePath, $this->certificatePassword],
-            'ssl_key' => [$this->keyFilePath, $this->certificatePassword],
-            'form_params' => $curl_post_data
-        ]);
-
-        $content = $response->getBody()->getContents();
+        $response = $this->client->request('POST',"",['body' => $curl_post_data]);
+        $content = $response->getContent();
 
         $crawler = new Crawler($content);
         $moveonResponse = json_decode($crawler->filterXPath("//response")->text());
 
         if (!isset($moveonResponse->queueId))
         {
-
             throw new \Exception("The MoveON server did not respond properly");
         }
+
+        if ($retrieveData==false)
+            return $moveonResponse->queueId;
 
         // Retrieve data
         $start = time();
@@ -84,13 +74,8 @@ class MoveOn
                 'id' => (int) $moveonResponse->queueId
             );
 
-            $response = $client->post($this->service_url,[
-                'cert' => [$this->certificatePath, $this->certificatePassword],
-                'ssl_key' => [$this->keyFilePath, $this->certificatePassword],
-                'form_params' => $curl_post_data
-            ]);
-
-            $content = $response->getBody()->getContents();
+            $response = $this->client->request('POST',"",['body' => $curl_post_data]);
+            $content = $response->getContent();
 
             $crawler = new Crawler($content);
             if ($crawler->filterXPath("//status")->text() == "success")
@@ -116,7 +101,7 @@ class MoveOn
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function findBy(string $entity,array $criteria, array $sort=["id"=>"asc"], int $rows=250, int $page=1,array $columns=[],string $locale="eng",string $search="true",$method="queue",$timeout=10)
+    public function findBy(string $entity,array $criteria, array $sort=["id"=>"asc"], int $rows=250, int $page=1,array $columns=[],string $locale="eng",string $search="true",string $method="queue",int $timeout=10)
     {
         if (!isset($this->entities_read[$entity]))
             throw new \Exception("Entity $entity does not exist");
@@ -124,16 +109,17 @@ class MoveOn
         $rules='';
         $i=1;
 
+        $params=[];
         foreach ($criteria as $field=>$value)
         {
             if (false === $this->validateField($field,$entity,"read"))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
-            if (is_array($value))
-                $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"in\",\"data\":\"'.implode(",",$value).'\"}';
-            else
-                $rules .= '{\"field\":\"'.$this->prefix($field,$entity).'\",\"op\":\"eq\",\"data\":\"'.$value.'\"}';
-
+            $params[] = [
+                "field"=>$this->prefix($field,$entity),
+                "op"=>(is_array($value)?"in":"eq"),
+                "data"=>(is_array($value)?implode(",",$value):$value)
+            ];
 
             if (count($criteria) > $i)
                 $rules .= ',';
@@ -152,22 +138,31 @@ class MoveOn
 
         $visibleColumns = implode(";",$visibleColumns);
 
+        $filterElements = [
+            "filters"=>json_encode(["groupOp"=>"AND","rules"=>$params]),
+            "visibleColumns"=>json_encode($visibleColumns),
+            "locale"=>$locale,
+            "sortName"=>$this->prefix(key($sort),$entity),
+            "sortOrder"=>current($sort),
+            "_search"=>$search,
+            "page"=>$page,
+            "rows"=>$rows
+        ];
+
         // Simple query if the page number is set directly
         if ($page>1)
         {
             if ($rows > $this->maxRowsPerQuery)
                 throw new \Exception("The number of rows for a given page must not exceed the limit of ".$this->maxRowsPerQuery);
 
-            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$rows.'"}';
             try {
-                return $this->sendQuery($entity,"list",$filter,$method,$timeout);
+                return $this->sendQuery($entity,"list",json_encode($filterElements),$method,$timeout);
             }
             catch (\Exception $exception)
             {
                 throw $exception;
             }
         }
-
 
         // Recreate xml response after pagination
         $remainingRows = $rows;
@@ -176,7 +171,10 @@ class MoveOn
             $rowsToRetrieve = ($remainingRows < $this->maxRowsPerQuery ? $remainingRows:$this->maxRowsPerQuery);
             $remainingRows = $remainingRows-$rowsToRetrieve;
 
-            $filter = '{"filters":"{\"groupOp\":\"AND\",\"rules\":['.$rules.']}","visibleColumns":"'.$visibleColumns.'","locale":"'.$locale.'","sortName":"'.$this->prefix(key($sort),$entity).'","sortOrder":"'.current($sort).'","_search":"'.$search.'","page":"'.$page.'","rows":"'.$rowsToRetrieve.'"}';
+            $filterElements["rows"] = $rowsToRetrieve;
+
+            $filter = json_encode($filterElements);
+
             try {
                 $response = $this->sendQuery($entity,"list",$filter,$method,$timeout);
             }
@@ -209,33 +207,26 @@ class MoveOn
      * @param array $data
      * @param string $method
      * @param int $timeout
+     * @param bool $retrieveData
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function save(string $entity,array $data,$method="queue",$timeout=10)
+    public function save(string $entity, array $data, string $method="queue", int $timeout=10,bool $retrieveData=true)
     {
         if (!isset($this->entities_write[$entity]))
             throw new \Exception("Entity $entity does not exist");
 
-        $i=1;
-        $dataString = '{"entity":"'.$entity.'",';
+        $elements = ["entity"=>$entity];
         foreach ($data as $field=>$value)
         {
             if (false === $this->validateField($field,$entity,"write"))
                 throw new \Exception("The field $field does not belong to the entity $entity");
 
-            $dataString .='"'.$this->prefix($field,$entity).'":"'.$value.'"';
-
-            if (count($data) > $i)
-                $dataString .= ',';
-
-            $i++;
+            $elements[$this->prefix($field,$entity)] = $value;
         }
-        $dataString .= "}";
 
         try {
-            return $this->sendQuery($entity,'save',$dataString,$method,$timeout);
-
+            return $this->sendQuery($entity,'save',json_encode($elements),$method,$timeout,$retrieveData);
         }
         catch (\Exception $exception)
         {
@@ -297,7 +288,7 @@ class MoveOn
      * @return mixed
      * @throws \Exception
      */
-    public function getEntity(string $entity,$readWrite="read")
+    public function getEntity(string $entity,string $readWrite="read")
     {
         $entities = ($readWrite=="read" ? $this->entities_read : $this->entities_write);
 
@@ -314,7 +305,7 @@ class MoveOn
      */
     private function prefix($field,$object)
     {
-        if (substr($field,0,6) == 'custom')
+        if (str_starts_with($field, 'custom'))
             return $field;
 
         $prefix = str_replace("-","_",$object).".";
@@ -331,7 +322,7 @@ class MoveOn
      */
     private function validateField($field,$entity,$readWrite)
     {
-        if (substr($field,0,6) == 'custom')
+        if (str_starts_with($field, 'custom'))
             return true;
 
         return in_array($field,$this->getEntity($entity,$readWrite));

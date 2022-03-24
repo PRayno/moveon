@@ -15,12 +15,31 @@ Prior to usage, you must contact your MoveON technical rep to activate the API i
 
 Then, you have to generate a self-signed X509 certificate for your API client (.pem) and bind the serial number to a MoveON user (see technical doc for that)
 
-Only the new version of the API (3.0) is now supported as the older version is set to be discontinued in january 2021.
+### Instantiation of the class
+The MoveOn class now requires the use of the symfony/http-client component.
+```php
+private $client;
+
+public function __construct(HttpClientInterface $client)
+{
+    $this->client = $client->withOptions([
+        'local_cert' => '/location/to/my/certificate/mycertificate.crt',
+        'local_pk' => '/location/to/my/certificate/mycertificate.key',
+        'passphrase' => 'myOptionalPassphraseToReadTheCertificate',
+        'base_uri' => 'https://myUniversityInstance-api.moveonfr.com/restService/index.php?version=3.0'
+    ]);
+}
+
+public function myFunction()
+{
+    $moveon = new MoveOn($this->client);
+    ...
+}
+```
 
 ### Retrieve information
 To gather information, you need the entity to look for and the criteria you want to search on.
 ```php
-$moveon = new MoveOn($service_url,$certificatePath,$keyFilePath,$certificatePassword);
 $data = $moveon->findBy("person",["surname"=>"Foo","first_name"=>"Bar"]);
 ```
 You can use arrays as criteria to search for multiple values. Eg :
@@ -39,20 +58,20 @@ You can also add more options to this method :
 
 Eg :
 ```php
-$moveon = new MoveOn($service_url,$certificatePath,$keyFilePath,$certificatePassword);
 $data = $moveon->findBy("person",["surname"=>"Foo","first_name"=>"Bar"],["surname"=>"asc","first_name"=>"asc"],20,1,["email","surname","last_name"],"fra");
 ```
 
-Due to a new limit set by QS, you cannot request for more than 250 rows. However, this library allows you to request for more lines, it will send multiple requests and merge the responses into a single one.
+Due to a limit set by QS, you cannot request for more than 250 rows. However, this library allows you to request for more lines, it will send multiple requests and merge the responses into a single one.
 This feature is only available if you don't request for a specific page.
 
 ### Save data
 Create and update use the same method ; if you want to update, you just need to provide the id of the entry.
 
 ```php
-$moveon = new MoveOn($service_url,$certificatePath,$keyFilePath,$certificatePassword);
 $data = $moveon->save("person",["id"=>"1","surname"=>"Foo","first_name"=>"Bar"]);
 ```
+
+The additional parameter `$retrieveData` set to false allows the method to only return the queueId provided by the API for a later use (useful when you have many queries)
 
 #### Note :
 
@@ -76,6 +95,5 @@ sector_id,size_id,organization_type_id
 ### Custom query
 You can also create your own custom query and send it to the API using the sendQuery method.
 ```php
-$moveon = new MoveOn($service_url,$certificatePath,$keyFilePath,$certificatePassword);
 $data = $moveon->sendQuery("person","list",YOUR_QUERY_STRING);
 ```
