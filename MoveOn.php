@@ -18,12 +18,16 @@ class MoveOn
      * @param HttpClientInterface $client
      * @param int $maxRowsPerQuery
      */
-    public function __construct(HttpClientInterface $client, int $maxRowsPerQuery=250)
+    public function __construct(HttpClientInterface $client, int $maxRowsPerQuery=250,$entitiesReadFile="",$entitiesWriteFile="")
     {
         $this->client = $client;
         $this->maxRowsPerQuery = $maxRowsPerQuery;
-        $this->entities_read = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_read.yml"));
-        $this->entities_write = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_write.yml"));
+
+        $entitiesReadFile = (empty($entitiesReadFile)) ? __DIR__ . "/Resources/entities_read.yml" : $entitiesReadFile;
+        $entitiesWriteFile = (empty($entitiesWriteFile)) ? __DIR__ . "/Resources/entities_read.yml" : $entitiesWriteFile;
+
+        $this->entities_read = Yaml::parse(file_get_contents($entitiesReadFile));
+        $this->entities_write = Yaml::parse(file_get_contents($entitiesWriteFile));
     }
 
     /**
@@ -140,7 +144,7 @@ class MoveOn
 
         $filterElements = [
             "filters"=>json_encode(["groupOp"=>"AND","rules"=>$params]),
-            "visibleColumns"=>json_encode($visibleColumns),
+            "visibleColumns"=>$visibleColumns,
             "locale"=>$locale,
             "sortName"=>$this->prefix(key($sort),$entity),
             "sortOrder"=>current($sort),
