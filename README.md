@@ -1,6 +1,6 @@
 # MoveOn Api wrapper
 
-MoveOn (https://www.qs-unisolution.com/moveon/) is an application used to manage International Mobility between universities and schools (Erasmus program for example). 
+MoveOn (https://www.qs-unisolution.com/moveon/) is an application used to manage International Mobility between universities and schools (Erasmus program for example).
 This package is a php wrapper for the MoveOn API.
 
 ## Installation
@@ -77,7 +77,7 @@ The additional parameter `$retrieveData` set to false allows the method to only 
 
 The following fields were excluded from their entities as they make the requests fail
 
-person : 
+person :
 address.type_eng,address.type_fra,address.type_deu,address.type_ita,address.type_spa
 
 relation :
@@ -96,4 +96,19 @@ sector_id,size_id,organization_type_id
 You can also create your own custom query and send it to the API using the sendQuery method.
 ```php
 $data = $moveon->sendQuery("person","list",YOUR_QUERY_STRING);
+```
+### Download files
+You can download the binary content of a file using the downloadFile method. In order to achieve this, you need to provide the document ID of the file you want to download using the "template_document" or the "simple_document" object.
+
+Here's an example of how to download a grant agreement document:
+```php
+$grantName = $grant->{"grant.name"}->__toString();
+$documents = $this->moveon->findBy("template-document",["regarding_grant_names"=>"$grantName,$grantName"]);
+foreach ($documents->rows as $document)
+{
+    $fs = new Filesystem();
+    $fileName = $document->{"template_document.fileName"}->__toString();
+    $binary = $this->moveon->downloadFile($document->{"template_document.id"}->__toString());
+    $fs->dumpFile("/location/to/my/file/$fileName", $binary);
+}
 ```

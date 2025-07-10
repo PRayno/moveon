@@ -16,7 +16,7 @@
     "ext-json": "*",
     "symfony/dom-crawler": "^5.4|^6.0",
     "symfony/yaml": "^5.4|^6.0",
-    "symfony/http-client": "^5.4|^6.0"
+    "symfony/http-client": "^5.4|^6.4"
   },
   "autoload": {
     "psr-0": { "PRayno\\MoveOnApi": "" }
