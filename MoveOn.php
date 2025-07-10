@@ -10,20 +10,19 @@ class MoveOn
 {
     protected array $entities_read;
     protected array $entities_write;
-    protected int $maxRowsPerQuery;
-    private HttpClientInterface $client;
 
     /**
      * Request constructor.
      * @param HttpClientInterface $client
      * @param int $maxRowsPerQuery
      */
-    public function __construct(HttpClientInterface $client, int $maxRowsPerQuery=250)
+    public function __construct(private HttpClientInterface $client, protected int $maxRowsPerQuery=250,string $entitiesReadFile="",string $entitiesWriteFile="")
     {
-        $this->client = $client;
-        $this->maxRowsPerQuery = $maxRowsPerQuery;
-        $this->entities_read = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_read.yml"));
-        $this->entities_write = Yaml::parse(file_get_contents(__DIR__ . "/Resources/entities_write.yml"));
+        $entitiesReadFile = (empty($entitiesReadFile)) ? __DIR__ . "/Resources/entities_read.yml" : $entitiesReadFile;
+        $entitiesWriteFile = (empty($entitiesWriteFile)) ? __DIR__ . "/Resources/entities_read.yml" : $entitiesWriteFile;
+
+        $this->entities_read = Yaml::parse(file_get_contents($entitiesReadFile));
+        $this->entities_write = Yaml::parse(file_get_contents($entitiesWriteFile));
     }
 
     /**
@@ -37,7 +36,7 @@ class MoveOn
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function sendQuery(string $entity,string $action,string $data,string $method="queue",int $timeout=10,bool $retrieveData=true): \SimpleXMLElement
+    public function sendQuery(string $entity,string $action,string $data,string $method="queue",int $timeout=10,bool $retrieveData=true): \SimpleXMLElement|int
     {
         $entities = ($action=="save" ? $this->entities_write:$this->entities_read);
 
@@ -52,6 +51,7 @@ class MoveOn
         ];
 
         $response = $this->client->request('POST',"",['body' => $curl_post_data]);
+
         $content = $response->getContent();
 
         $crawler = new Crawler($content);
@@ -112,8 +112,8 @@ class MoveOn
         $params=[];
         foreach ($criteria as $field=>$value)
         {
-            if (false === $this->validateField($field,$entity,"read"))
-                throw new \Exception("The field $field does not belong to the entity $entity");
+            //if (false === $this->validateField($field,$entity,"read"))
+            //    throw new \Exception("The field $field does not belong to the entity $entity");
 
             $params[] = [
                 "field"=>$this->prefix($field,$entity),
@@ -140,7 +140,7 @@ class MoveOn
 
         $filterElements = [
             "filters"=>json_encode(["groupOp"=>"AND","rules"=>$params]),
-            "visibleColumns"=>json_encode($visibleColumns),
+            "visibleColumns"=>$visibleColumns,
             "locale"=>$locale,
             "sortName"=>$this->prefix(key($sort),$entity),
             "sortOrder"=>current($sort),
@@ -296,6 +296,21 @@ class MoveOn
             throw new \Exception("Entity $entity does not exist in $readWrite mode");
 
         return $entities[$entity];
+    }
+
+    public function downloadFile(int $documentId)
+    {
+        $curl_post_data = [
+            'method' => "download",
+            'entity' => "file",
+            'action' => "download",
+            'data' => json_encode(["document_id"=>$documentId])
+        ];
+
+        $response = $this->client->request('POST',"",['body' => $curl_post_data]);
+
+        $content = $response->getContent();
+        return $content;
     }
 
     /**
