@@ -1,3 +1,9 @@
+> # Legacy API is deprecated
+> The legacy API used in this package will no lnger be maintained after 31st of December 2026
+> You should consider migrating to the REST API using this Symfony Bundle :
+> https://github.com/PRayno/moveon-rest-api/tree/main
+
+
 # MoveOn Api wrapper
 
 MoveOn (https://www.qs-unisolution.com/moveon/) is an application used to manage International Mobility between universities and schools (Erasmus program for example).
